@@ -1,14 +1,14 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 
 export interface IGmailAccount extends Document {
-    userId: string; // User who connected this account
+    userId: string;
     email: string;
     accessToken: string;
     refreshToken: string;
     expiresAt: Date;
     isActive: boolean;
-    createdAt: Date;
-    updatedAt: Date;
+    historyId?: string;
+    watchExpiration?: Date;
 }
 
 const GmailAccountSchema: Schema = new Schema({
@@ -18,6 +18,8 @@ const GmailAccountSchema: Schema = new Schema({
     refreshToken: { type: String, required: true },
     expiresAt: { type: Date, required: true },
     isActive: { type: Boolean, default: true },
+    historyId: { type: String },
+    watchExpiration: { type: Date },
 }, { timestamps: true });
 
 const GmailAccount: Model<IGmailAccount> =
