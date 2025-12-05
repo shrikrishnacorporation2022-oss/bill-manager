@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import axios from 'axios';
 import { Mail, Plus, Loader2, Check, ArrowRight, Search } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -18,7 +18,7 @@ interface Email {
     date: string;
 }
 
-export default function EmailsPage() {
+function EmailsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [accounts, setAccounts] = useState<GmailAccount[]>([]);
@@ -396,5 +396,17 @@ export default function EmailsPage() {
                 </div>
             )}
         </main>
+    );
+}
+
+export default function EmailsPage() {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen">
+                <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+            </div>
+        }>
+            <EmailsContent />
+        </Suspense>
     );
 }
