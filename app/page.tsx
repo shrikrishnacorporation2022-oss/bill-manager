@@ -57,6 +57,12 @@ export default function Home() {
         </div>
         <div className="flex gap-4">
           <button
+            onClick={() => window.location.href = '/activity'}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-medium transition-all"
+          >
+            Activity Log
+          </button>
+          <button
             onClick={() => window.location.href = '/rules'}
             className="px-4 py-2 rounded-lg bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 text-white font-medium transition-all"
           >
