@@ -1,0 +1,20 @@
+# Database
+MONGODB_URI=mongodb+srv://murugan:kk5020786kk@murugan.iwhg7hy.mongodb.net/?appName=murugan
+
+# NextAuth
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-super-secret-key-change-this-in-production
+
+# Google OAuth (Use the SAME credentials you have)
+GOOGLE_CLIENT_ID=82481068130-qis3f81ulqg129ki9po7r51h7abb4dam.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=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
+
+# Admin Access (CHANGE THIS TO YOUR EMAIL)
+ADMIN_EMAIL=your-email@gmail.com
+
+# Telegram
+TELEGRAM_BOT_TOKEN=8365048817:AAH7aQQKottY1xldl5kycBxDb-u1cmo-Lv0
+TELEGRAM_CHAT_ID=252739385
+
+# Security
+CRON_SECRET=my_cron_secret

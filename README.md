@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bill Management Agent
 
-## Getting Started
+A personal finance dashboard and automation agent to manage bills, forward emails, and send WhatsApp reminders.
 
-First, run the development server:
+## Features
+- **Dashboard**: View active connections (EB, Phone, Insurance) and upcoming bills.
+- **Email Agent**: Automatically scans Gmail for bills and forwards them or creates entries in the dashboard.
+- **WhatsApp Agent**: Sends reminders for due bills and accepts receipt uploads via WhatsApp.
+- **Masters**: Manage Electricity, Phone, Internet, Property Tax, and Insurance details.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Setup
+
+### 1. Environment Variables
+Create a `.env.local` file with the following:
+
+```env
+# Database
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/bills
+
+# Gmail API
+GMAIL_CLIENT_ID=...
+GMAIL_CLIENT_SECRET=...
+GMAIL_REDIRECT_URI=https://developers.google.com/oauthplayground
+GMAIL_REFRESH_TOKEN=...
+
+# WhatsApp (Meta Cloud API)
+WHATSAPP_TOKEN=...
+WHATSAPP_PHONE_NUMBER_ID=...
+WHATSAPP_VERIFY_TOKEN=my_secret_token
+ADMIN_PHONE_NUMBER=919876543210
+
+# Security
+CRON_SECRET=my_cron_secret
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Installation
+```bash
+npm install
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### 3. Deployment (Vercel)
+1. Push to GitHub.
+2. Import project in Vercel.
+3. Add Environment Variables in Vercel Settings.
+4. **Cron Job**: Vercel automatically detects `vercel.json` (create one if needed) or you can use the "Cron" tab to hit `/api/cron` daily.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Usage
+- **Add Master**: Go to the dashboard and click "Add New Connection".
+- **WhatsApp**: Send "Hi" to your bot number to test.
+- **Email**: The agent runs periodically via Cron. You can trigger it manually by visiting `/api/cron` (with auth header).
