@@ -21,8 +21,13 @@ export async function GET() {
             email: acc.email,
             createdAt: acc.createdAt,
         })));
-    } catch (error) {
-        console.error('Failed to fetch Gmail accounts:', error);
-        return NextResponse.json({ error: 'Failed to fetch accounts' }, { status: 500 });
+    } catch (error: any) {
+        console.error('=== GMAIL ACCOUNTS API ERROR ===');
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+        return NextResponse.json({
+            error: 'Failed to fetch accounts',
+            details: error.message
+        }, { status: 500 });
     }
 }
