@@ -92,6 +92,12 @@ export default function Home() {
           >
             Debug Console
           </button>
+          <button
+            onClick={() => window.location.href = '/gmail-activation'}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium transition-all"
+          >
+            ⚡ Activate Push
+          </button>
           <button className="p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors relative">
             <Bell className="w-6 h-6 text-gray-300" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
