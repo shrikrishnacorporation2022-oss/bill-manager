@@ -86,6 +86,12 @@ export default function Home() {
           >
             Telegram
           </button>
+          <button
+            onClick={() => window.location.href = '/debug'}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-500 hover:to-pink-500 text-white font-medium transition-all"
+          >
+            Debug Console
+          </button>
           <button className="p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors relative">
             <Bell className="w-6 h-6 text-gray-300" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>

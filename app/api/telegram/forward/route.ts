@@ -3,125 +3,108 @@ import { google } from 'googleapis';
 import axios from 'axios';
 import dbConnect from '@/lib/db';
 import GmailAccount from '@/models/GmailAccount';
-import Master from '@/models/Master';
-import { refreshGmailToken } from '@/lib/refreshGmailToken';
 
-export async function POST(request: Request) {
-    try {
-        const body = await request.json();
+const text = message.text;
+const photo = message.photo;
+const document = message.document;
+const from = message.from;
 
-        // Log what Telegram sends
-        console.log('=== TELEGRAM WEBHOOK RECEIVED ===');
-        console.log('Full body:', JSON.stringify(body, null, 2));
+console.log('Message text:', text);
+console.log('From:', from);
 
-        // Extract message from Telegram webhook format
-        const message = body.message;
-        if (!message) {
-            console.log('No message in webhook');
-            return NextResponse.json({ ok: true }); // Telegram expects 200 OK
-        }
+await dbConnect();
 
-        const text = message.text;
-        const photo = message.photo;
-        const document = message.document;
-        const from = message.from;
+// Get the "Telegram Forwarding" master
+const telegramMaster = await Master.findOne({
+    isTelegramForwarding: true
+});
 
-        console.log('Message text:', text);
-        console.log('From:', from);
+console.log('Telegram master found:', telegramMaster ? 'Yes' : 'No');
+console.log('Forward to email:', telegramMaster?.autoForwardTo);
 
-        await dbConnect();
+if (!telegramMaster || !telegramMaster.autoForwardTo) {
+    console.log('❌ Telegram forwarding not configured');
+    return NextResponse.json({ ok: true }); // Still return 200 to Telegram
+}
 
-        // Get the "Telegram Forwarding" master
-        const telegramMaster = await Master.findOne({
-            isTelegramForwarding: true
-        });
+// Get primary Gmail account (first active one)
+const gmailAccount = await GmailAccount.findOne({ isActive: true });
+if (!gmailAccount) {
+    console.log('❌ No Gmail account connected');
+    return NextResponse.json({ ok: true });
+}
 
-        console.log('Telegram master found:', telegramMaster ? 'Yes' : 'No');
-        console.log('Forward to email:', telegramMaster?.autoForwardTo);
+console.log('Gmail account:', gmailAccount.email);
 
-        if (!telegramMaster || !telegramMaster.autoForwardTo) {
-            console.log('❌ Telegram forwarding not configured');
-            return NextResponse.json({ ok: true }); // Still return 200 to Telegram
-        }
+// Refresh token if needed
+const credentials = await refreshGmailToken(gmailAccount._id.toString());
 
-        // Get primary Gmail account (first active one)
-        const gmailAccount = await GmailAccount.findOne({ isActive: true });
-        if (!gmailAccount) {
-            console.log('❌ No Gmail account connected');
-            return NextResponse.json({ ok: true });
-        }
+const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET
+);
 
-        console.log('Gmail account:', gmailAccount.email);
+oauth2Client.setCredentials({
+    access_token: credentials.accessToken,
+    refresh_token: credentials.refreshToken,
+});
 
-        // Refresh token if needed
-        const credentials = await refreshGmailToken(gmailAccount._id.toString());
+const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-        const oauth2Client = new google.auth.OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET
-        );
+// Prepare email content
+let emailBody = `Forwarded from Telegram\nFrom: ${from?.first_name || 'Unknown'} ${from?.last_name || ''}\n\n`;
+if (text) {
+    emailBody += `Message:\n${text}`;
+}
 
-        oauth2Client.setCredentials({
-            access_token: credentials.accessToken,
-            refresh_token: credentials.refreshToken,
-        });
+// Create email with attachment if present
+let rawEmail;
+if (photo || document) {
+    const fileId = photo ? photo[photo.length - 1].file_id : document.file_id;
+    const fileName = document ? document.file_name : `image_${Date.now()}.jpg`;
 
-        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+    console.log('Downloading attachment:', fileName);
+    const fileUrl = await getTelegramFileUrl(fileId);
+    const fileData = await downloadTelegramFile(fileUrl);
 
-        // Prepare email content
-        let emailBody = `Forwarded from Telegram\nFrom: ${from?.first_name || 'Unknown'} ${from?.last_name || ''}\n\n`;
-        if (text) {
-            emailBody += `Message:\n${text}`;
-        }
+    rawEmail = createEmailWithAttachment(
+        telegramMaster.autoForwardTo,
+        'Telegram Forwarding',
+        emailBody,
+        fileName,
+        fileData
+    );
+} else {
+    rawEmail = createSimpleEmail(
+        telegramMaster.autoForwardTo,
+        'Telegram Message',
+        emailBody
+    );
+}
 
-        // Create email with attachment if present
-        let rawEmail;
-        if (photo || document) {
-            const fileId = photo ? photo[photo.length - 1].file_id : document.file_id;
-            const fileName = document ? document.file_name : `image_${Date.now()}.jpg`;
+// Send email
+console.log('Sending email to:', telegramMaster.autoForwardTo);
+await gmail.users.messages.send({
+    userId: 'me',
+    requestBody: {
+        raw: rawEmail,
+    },
+});
 
-            console.log('Downloading attachment:', fileName);
-            const fileUrl = await getTelegramFileUrl(fileId);
-            const fileData = await downloadTelegramFile(fileUrl);
+console.log('✅ Email sent successfully!');
 
-            rawEmail = createEmailWithAttachment(
-                telegramMaster.autoForwardTo,
-                'Telegram Forwarding',
-                emailBody,
-                fileName,
-                fileData
-            );
-        } else {
-            rawEmail = createSimpleEmail(
-                telegramMaster.autoForwardTo,
-                'Telegram Message',
-                emailBody
-            );
-        }
-
-        // Send email
-        console.log('Sending email to:', telegramMaster.autoForwardTo);
-        await gmail.users.messages.send({
-            userId: 'me',
-            requestBody: {
-                raw: rawEmail,
-            },
-        });
-
-        console.log('✅ Email sent successfully!');
-
-        return NextResponse.json({
-            ok: true,
-            success: true,
-            message: 'Forwarded to email successfully'
-        });
+return NextResponse.json({
+    ok: true,
+    success: true,
+    message: 'Forwarded to email successfully'
+});
     } catch (error: any) {
-        console.error('❌ Telegram forward error:', error);
-        console.error('Error stack:', error.stack);
-        return NextResponse.json({
-            ok: true // Still return 200 to Telegram
-        });
-    }
+    console.error('❌ Telegram forward error:', error);
+    console.error('Error stack:', error.stack);
+    return NextResponse.json({
+        ok: true // Still return 200 to Telegram
+    });
+}
 }
 
 async function getTelegramFileUrl(fileId: string): Promise<string> {
