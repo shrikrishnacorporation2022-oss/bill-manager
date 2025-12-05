@@ -73,11 +73,19 @@ export default function CategoriesPage() {
 
     return (
         <main className="min-h-screen p-4 md:p-8">
-            <header className="mb-8">
-                <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-                    Category Master
-                </h1>
-                <p className="text-gray-400 mt-2">Manage your bill categories</p>
+            <header className="mb-8 flex justify-between items-center">
+                <div>
+                    <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+                        Category Master
+                    </h1>
+                    <p className="text-gray-400 mt-2">Manage your bill categories</p>
+                </div>
+                <button
+                    onClick={() => window.location.href = '/'}
+                    className="px-4 py-2 rounded-lg bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-500 hover:to-gray-600 text-white font-medium transition-all"
+                >
+                    ← Home
+                </button>
             </header>
 
             <div className="max-w-2xl">
