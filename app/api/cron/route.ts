@@ -4,6 +4,7 @@ import dbConnect from '@/lib/db';
 import GmailAccount from '@/models/GmailAccount';
 import Master from '@/models/Master';
 import Bill from '@/models/Bill';
+import ForwardingActivity from '@/models/ForwardingActivity';
 import { sendTelegramMessage } from '@/lib/telegram';
 
 export async function GET(request: Request) {
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
         // 1. Get all active Gmail accounts
         const gmailAccounts = await GmailAccount.find({ isActive: true });
         let totalProcessed = 0;
+        let totalForwarded = 0;
 
         for (const account of gmailAccounts) {
             const oauth2Client = new google.auth.OAuth2(
@@ -36,11 +38,11 @@ export async function GET(request: Request) {
             // 2. Get all masters for forwarding rules
             const masters = await Master.find({ userId: account.userId });
 
-            // 3. Fetch unread emails
+            // 3. Fetch recent emails (last 2 hours) instead of just unread
             const res = await gmail.users.messages.list({
                 userId: 'me',
-                q: 'is:unread',
-                maxResults: 10,
+                q: 'newer_than:2h',
+                maxResults: 50,
             });
 
             const messages = res.data.messages || [];
@@ -61,6 +63,9 @@ export async function GET(request: Request) {
 
                 // 4. Match against forwarding rules
                 for (const master of masters) {
+                    // Skip if no forwarding configured
+                    if (!master.autoForwardTo) continue;
+
                     const isSenderMatch = master.emailSender && from.includes(master.emailSender);
                     const isKeywordMatch = master.emailKeywords?.some(k =>
                         subject.toLowerCase().includes(k.toLowerCase()) ||
@@ -70,21 +75,51 @@ export async function GET(request: Request) {
                     if (isSenderMatch || isKeywordMatch) {
                         console.log(`✓ Match found for ${master.name}`);
 
-                        // 5. Forward email if rule exists
-                        if (master.autoForwardTo) {
-                            await forwardEmail(gmail, message.id!, master.autoForwardTo, subject);
-                            console.log(`✓ Forwarded to ${master.autoForwardTo}`);
-                        }
-
-                        // 6. Mark as read
-                        await gmail.users.messages.modify({
-                            userId: 'me',
-                            id: message.id!,
-                            requestBody: {
-                                removeLabelIds: ['UNREAD'],
-                            },
+                        // 5. Check if already processed (avoid duplicates)
+                        const existingActivity = await ForwardingActivity.findOne({
+                            emailId: message.id!,
+                            masterId: master._id.toString(),
                         });
 
+                        if (existingActivity) {
+                            console.log(`⏭️  Already processed, skipping`);
+                            continue; // Skip this rule for this email
+                        }
+
+                        // 6. Forward email
+                        try {
+                            await forwardEmail(gmail, message.id!, master.autoForwardTo, subject);
+                            console.log(`✓ Forwarded to ${master.autoForwardTo}`);
+
+                            // 7. Save forwarding activity
+                            await ForwardingActivity.create({
+                                emailId: message.id!,
+                                gmailAccountId: account._id.toString(),
+                                emailFrom: from,
+                                emailSubject: subject,
+                                forwardedTo: master.autoForwardTo,
+                                masterId: master._id.toString(),
+                                status: 'success',
+                            });
+
+                            totalForwarded++;
+                        } catch (error: any) {
+                            console.error(`✗ Failed to forward:`, error.message);
+
+                            // Save failed forwarding activity
+                            await ForwardingActivity.create({
+                                emailId: message.id!,
+                                gmailAccountId: account._id.toString(),
+                                emailFrom: from,
+                                emailSubject: subject,
+                                forwardedTo: master.autoForwardTo,
+                                masterId: master._id.toString(),
+                                status: 'failed',
+                                errorMessage: error.message,
+                            });
+                        }
+
+                        // NOTE: We do NOT mark as read - emails stay unread for user visibility
                         totalProcessed++;
                         break; // Stop checking other masters for this email
                     }
@@ -92,7 +127,7 @@ export async function GET(request: Request) {
             }
         }
 
-        // 7. Check for due bills and send Telegram reminders
+        // 8. Check for due bills and send Telegram reminders
         const threeDaysFromNow = new Date();
         threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
@@ -119,7 +154,8 @@ export async function GET(request: Request) {
 
         return NextResponse.json({
             success: true,
-            emailsProcessed: totalProcessed,
+            emailsChecked: totalProcessed,
+            emailsForwarded: totalForwarded,
             reminders: dueBills.length
         });
     } catch (error) {
