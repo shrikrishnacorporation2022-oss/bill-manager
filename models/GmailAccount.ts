@@ -9,6 +9,8 @@ export interface IGmailAccount extends Document {
     isActive: boolean;
     historyId?: string;
     watchExpiration?: Date;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 const GmailAccountSchema: Schema = new Schema({
