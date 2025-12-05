@@ -15,6 +15,61 @@ interface ForwardingActivity {
     errorMessage?: string;
 }
 
+function NextCheckTimer() {
+    const [minutesUntilNext, setMinutesUntilNext] = useState(0);
+    const [secondsUntilNext, setSecondsUntilNext] = useState(0);
+    const [nextCheckTime, setNextCheckTime] = useState('');
+
+    useEffect(() => {
+        const updateTimer = () => {
+            const now = new Date();
+            const nextHour = new Date(now);
+            nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+
+            const diffMs = nextHour.getTime() - now.getTime();
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffSecs = Math.floor((diffMs % 60000) / 1000);
+
+            setMinutesUntilNext(diffMins);
+            setSecondsUntilNext(diffSecs);
+            setNextCheckTime(nextHour.toLocaleTimeString('en-IN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            }));
+        };
+
+        updateTimer();
+        const interval = setInterval(updateTimer, 1000);
+        return () => clearInterval(interval);
+    }, []);
+
+    return (
+        <div className="glass-card mb-6 p-6 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/20">
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-purple-500/20">
+                        <Clock className="w-6 h-6 text-purple-400" />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-bold text-white">Next Activity Check</h3>
+                        <p className="text-sm text-gray-400">Agent runs every hour on the hour</p>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-400">
+                        {minutesUntilNext}:{secondsUntilNext.toString().padStart(2, '0')}
+                    </div>
+                    <p className="text-sm text-gray-400 mt-1">
+                        Next check at {nextCheckTime}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
 export default function ActivityLogPage() {
     const [activities, setActivities] = useState<ForwardingActivity[]>([]);
     const [loading, setLoading] = useState(true);
@@ -65,8 +120,8 @@ export default function ActivityLogPage() {
                     <button
                         onClick={() => setAutoRefresh(!autoRefresh)}
                         className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${autoRefresh
-                                ? 'bg-green-600 text-white'
-                                : 'bg-gray-600 text-white hover:bg-gray-500'
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-600 text-white hover:bg-gray-500'
                             }`}
                     >
                         <RefreshCw className={`w-4 h-4 ${autoRefresh ? 'animate-spin' : ''}`} />
@@ -80,6 +135,9 @@ export default function ActivityLogPage() {
                     </button>
                 </div>
             </header>
+
+            {/* Next Check Timer */}
+            <NextCheckTimer />
 
             {loading ? (
                 <div className="flex items-center justify-center h-64">

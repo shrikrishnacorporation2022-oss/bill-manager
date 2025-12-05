@@ -6,6 +6,7 @@ import Master from '@/models/Master';
 import Bill from '@/models/Bill';
 import ForwardingActivity from '@/models/ForwardingActivity';
 import { sendTelegramMessage } from '@/lib/telegram';
+import { refreshGmailToken } from '@/lib/refreshGmailToken';
 
 export async function GET(request: Request) {
     // Verify Cron Secret to prevent unauthorized access
@@ -23,14 +24,17 @@ export async function GET(request: Request) {
         let totalForwarded = 0;
 
         for (const account of gmailAccounts) {
+            // Refresh token if needed
+            const credentials = await refreshGmailToken(account._id.toString());
+
             const oauth2Client = new google.auth.OAuth2(
                 process.env.GOOGLE_CLIENT_ID,
                 process.env.GOOGLE_CLIENT_SECRET
             );
 
             oauth2Client.setCredentials({
-                access_token: account.accessToken,
-                refresh_token: account.refreshToken,
+                access_token: credentials.accessToken,
+                refresh_token: credentials.refreshToken,
             });
 
             const gmail = google.gmail({ version: 'v1', auth: oauth2Client });

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
 import dbConnect from '@/lib/db';
 import GmailAccount from '@/models/GmailAccount';
+import { refreshGmailToken } from '@/lib/refreshGmailToken';
 
 export async function GET(request: Request) {
     try {
@@ -19,14 +20,17 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: 'Account not found' }, { status: 404 });
         }
 
+        // Refresh token if needed
+        const credentials = await refreshGmailToken(accountId);
+
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET
         );
 
         oauth2Client.setCredentials({
-            access_token: account.accessToken,
-            refresh_token: account.refreshToken,
+            access_token: credentials.accessToken,
+            refresh_token: credentials.refreshToken,
         });
 
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
