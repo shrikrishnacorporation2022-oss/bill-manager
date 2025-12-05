@@ -80,6 +80,12 @@ export default function Home() {
           >
             Email Manager
           </button>
+          <button
+            onClick={() => window.location.href = '/telegram'}
+            className="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-medium transition-all"
+          >
+            Telegram
+          </button>
           <button className="p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors relative">
             <Bell className="w-6 h-6 text-gray-300" />
             <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>

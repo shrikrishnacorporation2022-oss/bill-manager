@@ -13,6 +13,7 @@ export interface IMaster extends Document {
     autoForwardTo?: string; // Email to forward to
     whatsappReminder: boolean;
     userId: string; // For future multi-user support, or just 'admin'
+    isTelegramForwarding?: boolean; // Special flag for Telegram forwarding master
 }
 
 const MasterSchema: Schema = new Schema({
@@ -32,6 +33,7 @@ const MasterSchema: Schema = new Schema({
     autoForwardTo: { type: String },
     whatsappReminder: { type: Boolean, default: true },
     userId: { type: String, default: 'admin' },
+    isTelegramForwarding: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const Master: Model<IMaster> = mongoose.models.Master || mongoose.model<IMaster>('Master', MasterSchema);
