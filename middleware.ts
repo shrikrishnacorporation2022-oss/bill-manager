@@ -5,9 +5,10 @@ export default auth((req) => {
     const isLoggedIn = !!req.auth
     const isOnLoginPage = req.nextUrl.pathname.startsWith('/login')
     const isAuthApi = req.nextUrl.pathname.startsWith('/api/auth')
+    const isTelegramApi = req.nextUrl.pathname.startsWith('/api/telegram')
 
-    // Allow auth API routes
-    if (isAuthApi) {
+    // Allow auth API routes and Telegram webhook
+    if (isAuthApi || isTelegramApi) {
         return NextResponse.next()
     }
 
