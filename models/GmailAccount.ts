@@ -7,6 +7,8 @@ export interface IGmailAccount extends Document {
     refreshToken: string;
     expiresAt: Date;
     isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
 }
 
 const GmailAccountSchema: Schema = new Schema({
