@@ -11,10 +11,12 @@ export async function POST() {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
+        const userEmail = session.user.email;
+
         await dbConnect();
 
         // Check if user already has categories
-        const existingCount = await Category.countDocuments({ userId: session.user.email });
+        const existingCount = await Category.countDocuments({ userId: userEmail });
         if (existingCount > 0) {
             return NextResponse.json({ message: 'Categories already exist' });
         }
@@ -32,7 +34,7 @@ export async function POST() {
         ];
 
         await Category.insertMany(
-            defaults.map(cat => ({ ...cat, userId: session.user.email }))
+            defaults.map(cat => ({ ...cat, userId: userEmail }))
         );
 
         return NextResponse.json({ success: true, message: 'Default categories created' });
