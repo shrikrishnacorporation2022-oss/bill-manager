@@ -105,8 +105,7 @@ export async function GET(request: Request) {
         }).populate('masterId');
 
         for (const bill of dueBills) {
-            // @ts-ignore
-            const master = bill.masterId;
+            const master = bill.masterId as any;
             if (master && master.whatsappReminder) {
                 const chatId = process.env.TELEGRAM_CHAT_ID;
                 if (chatId) {
