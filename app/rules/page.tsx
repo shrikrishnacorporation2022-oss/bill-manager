@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Mail, Trash2, Loader2, Tag, User } from 'lucide-react';
+import { Mail, Trash2, Loader2, Tag, User, Edit2, X, Save } from 'lucide-react';
 
 interface Master {
     _id: string;
@@ -16,6 +16,14 @@ interface Master {
 export default function ForwardingRulesPage() {
     const [rules, setRules] = useState<Master[]>([]);
     const [loading, setLoading] = useState(true);
+    const [editingRule, setEditingRule] = useState<Master | null>(null);
+    const [editForm, setEditForm] = useState({
+        name: '',
+        emailSender: '',
+        emailKeywords: '',
+        autoForwardTo: '',
+    });
+    const [saving, setSaving] = useState(false);
 
     useEffect(() => {
         fetchRules();
@@ -31,6 +39,43 @@ export default function ForwardingRulesPage() {
             console.error(error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleEdit = (rule: Master) => {
+        setEditingRule(rule);
+        setEditForm({
+            name: rule.name,
+            emailSender: rule.emailSender || '',
+            emailKeywords: rule.emailKeywords?.join(', ') || '',
+            autoForwardTo: rule.autoForwardTo || '',
+        });
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingRule) return;
+
+        setSaving(true);
+        try {
+            const keywordArray = editForm.emailKeywords
+                .split(',')
+                .map(k => k.trim())
+                .filter(k => k);
+
+            await axios.put(`/api/masters/${editingRule._id}`, {
+                name: editForm.name,
+                emailSender: editForm.emailSender || undefined,
+                emailKeywords: keywordArray.length > 0 ? keywordArray : undefined,
+                autoForwardTo: editForm.autoForwardTo,
+            });
+
+            setEditingRule(null);
+            await fetchRules();
+        } catch (error) {
+            console.error(error);
+            alert('Failed to update rule');
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -68,6 +113,96 @@ export default function ForwardingRulesPage() {
                     ← Home
                 </button>
             </header>
+
+            {/* Edit Modal */}
+            {editingRule && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="glass-card max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-2xl font-bold text-white">Edit Forwarding Rule</h2>
+                            <button
+                                onClick={() => setEditingRule(null)}
+                                className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                            >
+                                <X className="w-6 h-6 text-gray-400" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Rule Name</label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    value={editForm.name}
+                                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Email Sender (optional)</label>
+                                <input
+                                    type="email"
+                                    className="input-field"
+                                    placeholder="e.g., bills@company.com"
+                                    value={editForm.emailSender}
+                                    onChange={(e) => setEditForm({ ...editForm, emailSender: e.target.value })}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Leave empty if using keywords instead</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Keywords (comma-separated)</label>
+                                <input
+                                    type="text"
+                                    className="input-field"
+                                    placeholder="e.g., invoice, bill, receipt"
+                                    value={editForm.emailKeywords}
+                                    onChange={(e) => setEditForm({ ...editForm, emailKeywords: e.target.value })}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Leave empty if using sender email instead</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Forward To Email</label>
+                                <input
+                                    type="email"
+                                    className="input-field"
+                                    placeholder="recipient@example.com"
+                                    value={editForm.autoForwardTo}
+                                    onChange={(e) => setEditForm({ ...editForm, autoForwardTo: e.target.value })}
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={handleSaveEdit}
+                                    disabled={saving || !editForm.name || !editForm.autoForwardTo}
+                                    className="btn-primary flex-1 flex items-center justify-center gap-2"
+                                >
+                                    {saving ? (
+                                        <>
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            Saving...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Save className="w-5 h-5" />
+                                            Save Changes
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => setEditingRule(null)}
+                                    className="px-6 py-3 rounded-lg bg-white/5 hover:bg-white/10 text-white transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {loading ? (
                 <div className="flex items-center justify-center h-64">
@@ -111,12 +246,22 @@ export default function ForwardingRulesPage() {
                                             </span>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => handleDelete(rule._id)}
-                                        className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
-                                    </button>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleEdit(rule)}
+                                            className="p-2 rounded-lg hover:bg-blue-500/20 text-blue-400 transition-colors"
+                                            title="Edit rule"
+                                        >
+                                            <Edit2 className="w-5 h-5" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(rule._id)}
+                                            className="p-2 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
+                                            title="Delete rule"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    </div>
                                 </div>
 
                                 <h3 className="text-lg font-bold text-white mb-3 line-clamp-2">{rule.name}</h3>
