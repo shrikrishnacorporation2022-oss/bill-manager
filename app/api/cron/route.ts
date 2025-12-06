@@ -131,7 +131,46 @@ export async function GET(request: Request) {
             }
         }
 
-        // 8. Check for due bills and send Telegram reminders
+        // 8. Renew Gmail watch subscriptions (expires every 7 days)
+        console.log('Renewing Gmail watch subscriptions...');
+        for (const account of gmailAccounts) {
+            try {
+                const credentials = await refreshGmailToken(account._id.toString());
+
+                const oauth2Client = new google.auth.OAuth2(
+                    process.env.GOOGLE_CLIENT_ID,
+                    process.env.GOOGLE_CLIENT_SECRET
+                );
+
+                oauth2Client.setCredentials({
+                    access_token: credentials.accessToken,
+                    refresh_token: credentials.refreshToken,
+                });
+
+                const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+                const res = await gmail.users.watch({
+                    userId: 'me',
+                    requestBody: {
+                        topicName: 'projects/bill-agent-480206/topics/gmail-push',
+                        labelIds: ['INBOX'],
+                    },
+                });
+
+                // Update expiration and historyId
+                account.watchExpiration = new Date(Number(res.data.expiration));
+                if (res.data.historyId) {
+                    account.historyId = res.data.historyId;
+                }
+                await account.save();
+
+                console.log(`✅ Renewed watch for ${account.email}, expires: ${account.watchExpiration}`);
+            } catch (error: any) {
+                console.error(`Failed to renew watch for ${account.email}:`, error.message);
+            }
+        }
+
+        // 9. Check for due bills and send Telegram reminders
         const threeDaysFromNow = new Date();
         threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
