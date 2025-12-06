@@ -216,21 +216,45 @@ async function processMessage(gmail: any, messageId: string, account: any) {
 }
 
 async function forwardEmail(gmail: any, messageId: string, to: string, subject: string) {
+    // Get full message to extract body content
     const msg = await gmail.users.messages.get({
         userId: 'me',
         id: messageId,
-        format: 'raw',
+        format: 'full',
     });
 
-    const rawMessage = msg.data.raw;
+    // Extract body content
+    let body = '';
+    if (msg.data.payload?.body?.data) {
+        body = Buffer.from(msg.data.payload.body.data, 'base64').toString();
+    } else if (msg.data.payload?.parts) {
+        for (const part of msg.data.payload.parts) {
+            if (part.mimeType === 'text/plain' && part.body?.data) {
+                body = Buffer.from(part.body.data, 'base64').toString();
+                break;
+            } else if (part.mimeType === 'text/html' && part.body?.data && !body) {
+                body = Buffer.from(part.body.data, 'base64').toString();
+            }
+        }
+    }
 
-    // Create forwarded email
+    const headers = msg.data.payload?.headers || [];
+    const from = headers.find((h: any) => h.name === 'From')?.value || 'Unknown';
+    const date = headers.find((h: any) => h.name === 'Date')?.value || '';
+
+    // Create forwarded email with original content
     const emailContent = [
         `To: ${to}`,
         `Subject: Fwd: ${subject}`,
+        'MIME-Version: 1.0',
         'Content-Type: text/plain; charset="UTF-8"',
         '',
-        `Forwarded email (Message ID: ${messageId})`,
+        '---------- Forwarded message ----------',
+        `From: ${from}`,
+        `Date: ${date}`,
+        `Subject: ${subject}`,
+        '',
+        body || '(No message body)',
     ].join('\n');
 
     const encodedEmail = Buffer.from(emailContent)
