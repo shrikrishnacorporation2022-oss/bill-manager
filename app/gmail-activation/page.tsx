@@ -1,13 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { CheckCircle, AlertCircle, RefreshCw, ArrowLeft } from 'lucide-react';
+import { CheckCircle, AlertCircle, RefreshCw, ArrowLeft, Clock } from 'lucide-react';
 
 export default function GmailActivationPage() {
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any>(null);
     const [error, setError] = useState('');
+    const [watchStatus, setWatchStatus] = useState<any>(null);
+
+    useEffect(() => {
+        fetchWatchStatus();
+    }, []);
+
+    const fetchWatchStatus = async () => {
+        try {
+            const res = await axios.get('/api/gmail/watch/status');
+            setWatchStatus(res.data.accounts);
+        } catch (err) {
+            console.error('Failed to fetch watch status:', err);
+        }
+    };
 
     const activatePush = async () => {
         setLoading(true);
@@ -62,6 +76,50 @@ export default function GmailActivationPage() {
                             <li>✓ Permissions granted to Gmail service account</li>
                         </ul>
                     </div>
+
+                    {watchStatus && watchStatus.length > 0 && (
+                        <div className="mb-6 space-y-2">
+                            <h3 className="font-semibold text-white flex items-center gap-2">
+                                <Clock className="w-4 h-4" />
+                                Current Status:
+                            </h3>
+                            {watchStatus.map((status: any, idx: number) => {
+                                const isExpired = !status.isActive;
+                                const expiresAt = status.expiresAt ? new Date(status.expiresAt) : null;
+                                const lastRenewed = status.lastRenewed ? new Date(status.lastRenewed) : null;
+
+                                return (
+                                    <div
+                                        key={idx}
+                                        className={`p-3 rounded-lg ${isExpired
+                                            ? 'bg-yellow-500/10 border border-yellow-500/30'
+                                            : 'bg-green-500/10 border border-green-500/30'
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-sm text-white">{status.email}</span>
+                                            <span className={`text-xs px-2 py-1 rounded ${isExpired
+                                                ? 'bg-yellow-500/20 text-yellow-300'
+                                                : 'bg-green-500/20 text-green-300'
+                                                }`}>
+                                                {isExpired ? 'Expired' : 'Active'}
+                                            </span>
+                                        </div>
+                                        {expiresAt && (
+                                            <p className="text-xs text-gray-400">
+                                                Expires: {expiresAt.toLocaleString()}
+                                            </p>
+                                        )}
+                                        {lastRenewed && (
+                                            <p className="text-xs text-gray-400">
+                                                Last renewed: {lastRenewed.toLocaleString()}
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
 
                     {!results && !error && (
                         <button
@@ -120,15 +178,15 @@ export default function GmailActivationPage() {
                                     <div
                                         key={idx}
                                         className={`p-3 rounded-lg ${result.status === 'success'
-                                                ? 'bg-green-500/10 border border-green-500/30'
-                                                : 'bg-red-500/10 border border-red-500/30'
+                                            ? 'bg-green-500/10 border border-green-500/30'
+                                            : 'bg-red-500/10 border border-red-500/30'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm text-white">{result.email}</span>
                                             <span className={`text-xs px-2 py-1 rounded ${result.status === 'success'
-                                                    ? 'bg-green-500/20 text-green-300'
-                                                    : 'bg-red-500/20 text-red-300'
+                                                ? 'bg-green-500/20 text-green-300'
+                                                : 'bg-red-500/20 text-red-300'
                                                 }`}>
                                                 {result.status}
                                             </span>
