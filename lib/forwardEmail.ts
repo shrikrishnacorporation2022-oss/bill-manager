@@ -1,4 +1,4 @@
-async function forwardEmail(gmail: any, messageId: string, to: string, subject: string) {
+export async function forwardEmail(gmail: any, messageId: string, to: string, subject: string) {
     // Get full message to extract body
     const msg = await gmail.users.messages.get({
         userId: 'me',
