@@ -6,6 +6,7 @@ import GmailAccount from '@/models/GmailAccount';
 import Master from '@/models/Master';
 import ForwardingActivity from '@/models/ForwardingActivity';
 import { refreshGmailToken } from '@/lib/refreshGmailToken';
+import { forwardEmail } from '@/lib/forwardEmail';
 
 export async function POST(request: Request) {
     try {
