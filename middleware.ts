@@ -6,9 +6,10 @@ export default auth((req) => {
     const isOnLoginPage = req.nextUrl.pathname.startsWith('/login')
     const isAuthApi = req.nextUrl.pathname.startsWith('/api/auth')
     const isTelegramApi = req.nextUrl.pathname.startsWith('/api/telegram')
+    const isGmailWebhook = req.nextUrl.pathname.startsWith('/api/gmail/webhook')
 
-    // Allow auth API routes and Telegram webhook
-    if (isAuthApi || isTelegramApi) {
+    // Allow auth API routes, Telegram webhook, and Gmail webhook
+    if (isAuthApi || isTelegramApi || isGmailWebhook) {
         return NextResponse.next()
     }
 
