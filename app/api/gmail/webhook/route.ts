@@ -124,6 +124,12 @@ async function processMessage(gmail: any, messageId: string, account: any) {
         const from = headers.find((h: any) => h.name === 'From')?.value || '';
         const subject = headers.find((h: any) => h.name === 'Subject')?.value || '';
 
+        // Skip forwarded emails to prevent loops
+        if (subject.toLowerCase().startsWith('fwd:')) {
+            console.log('Skipping already forwarded email');
+            return;
+        }
+
         let body = '';
         if (msg.data.payload?.body?.data) {
             body = Buffer.from(msg.data.payload.body.data, 'base64').toString();
