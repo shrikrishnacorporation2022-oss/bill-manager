@@ -216,7 +216,7 @@ async function processMessage(gmail: any, messageId: string, account: any) {
 }
 
 async function forwardEmail(gmail: any, messageId: string, to: string, subject: string) {
-    // Get full message to extract body content
+    // Get full message to extract body content and attachments
     const msg = await gmail.users.messages.get({
         userId: 'me',
         id: messageId,
@@ -225,29 +225,74 @@ async function forwardEmail(gmail: any, messageId: string, to: string, subject: 
 
     // Extract body content
     let body = '';
+    const attachments: any[] = [];
+
+    const extractParts = (parts: any[]) => {
+        for (const part of parts) {
+            if (part.mimeType === 'text/plain' && part.body?.data && !body) {
+                body = Buffer.from(part.body.data, 'base64').toString();
+            } else if (part.mimeType === 'text/html' && part.body?.data && !body) {
+                body = Buffer.from(part.body.data, 'base64').toString();
+            } else if (part.filename && part.body?.attachmentId) {
+                // Found an attachment
+                attachments.push({
+                    filename: part.filename,
+                    mimeType: part.mimeType || 'application/octet-stream',
+                    attachmentId: part.body.attachmentId,
+                    size: part.body.size,
+                });
+            } else if (part.parts) {
+                // Recursive for nested parts
+                extractParts(part.parts);
+            }
+        }
+    };
+
     if (msg.data.payload?.body?.data) {
         body = Buffer.from(msg.data.payload.body.data, 'base64').toString();
     } else if (msg.data.payload?.parts) {
-        for (const part of msg.data.payload.parts) {
-            if (part.mimeType === 'text/plain' && part.body?.data) {
-                body = Buffer.from(part.body.data, 'base64').toString();
-                break;
-            } else if (part.mimeType === 'text/html' && part.body?.data && !body) {
-                body = Buffer.from(part.body.data, 'base64').toString();
-            }
-        }
+        extractParts(msg.data.payload.parts);
     }
 
     const headers = msg.data.payload?.headers || [];
     const from = headers.find((h: any) => h.name === 'From')?.value || 'Unknown';
     const date = headers.find((h: any) => h.name === 'Date')?.value || '';
 
-    // Create forwarded email with original content
-    const emailContent = [
+    console.log(`Found ${attachments.length} attachments`);
+
+    // Download attachments
+    const attachmentData: any[] = [];
+    for (const att of attachments) {
+        try {
+            const attachment = await gmail.users.messages.attachments.get({
+                userId: 'me',
+                messageId: messageId,
+                id: att.attachmentId,
+            });
+
+            attachmentData.push({
+                filename: att.filename,
+                mimeType: att.mimeType,
+                data: attachment.data.data, // Already base64 encoded
+            });
+            console.log(`Downloaded attachment: ${att.filename}`);
+        } catch (error) {
+            console.error(`Failed to download attachment ${att.filename}:`, error);
+        }
+    }
+
+    // Create MIME email with attachments
+    const boundary = '----=_Part_' + Date.now();
+
+    const emailParts = [
         `To: ${to}`,
         `Subject: Fwd: ${subject}`,
         'MIME-Version: 1.0',
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        '',
+        `--${boundary}`,
         'Content-Type: text/plain; charset="UTF-8"',
+        'Content-Transfer-Encoding: 7bit',
         '',
         '---------- Forwarded message ----------',
         `From: ${from}`,
@@ -255,7 +300,24 @@ async function forwardEmail(gmail: any, messageId: string, to: string, subject: 
         `Subject: ${subject}`,
         '',
         body || '(No message body)',
-    ].join('\n');
+    ];
+
+    // Add attachments
+    for (const att of attachmentData) {
+        emailParts.push(
+            '',
+            `--${boundary}`,
+            `Content-Type: ${att.mimeType}; name="${att.filename}"`,
+            'Content-Transfer-Encoding: base64',
+            `Content-Disposition: attachment; filename="${att.filename}"`,
+            '',
+            att.data
+        );
+    }
+
+    emailParts.push(`--${boundary}--`);
+
+    const emailContent = emailParts.join('\n');
 
     const encodedEmail = Buffer.from(emailContent)
         .toString('base64')
