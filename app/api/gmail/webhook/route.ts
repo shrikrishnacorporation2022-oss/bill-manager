@@ -130,19 +130,30 @@ async function processMessage(gmail: any, messageId: string, account: any) {
             return;
         }
 
+        // Extract body content - handle nested parts for emails with attachments
         let body = '';
+
+        const extractBody = (parts: any[]): void => {
+            for (const part of parts) {
+                if (part.mimeType === 'text/plain' && part.body?.data && !body) {
+                    body = Buffer.from(part.body.data, 'base64').toString();
+                    break;
+                } else if (part.mimeType === 'text/html' && part.body?.data && !body) {
+                    body = Buffer.from(part.body.data, 'base64').toString();
+                } else if (part.parts) {
+                    // Recursively check nested parts
+                    extractBody(part.parts);
+                }
+            }
+        };
+
         if (msg.data.payload?.body?.data) {
             body = Buffer.from(msg.data.payload.body.data, 'base64').toString();
         } else if (msg.data.payload?.parts) {
-            for (const part of msg.data.payload.parts) {
-                if (part.mimeType === 'text/plain' && part.body?.data) {
-                    body = Buffer.from(part.body.data, 'base64').toString();
-                    break;
-                }
-            }
+            extractBody(msg.data.payload.parts);
         }
 
-        console.log(`Processing: ${subject} from ${from}`);
+        console.log(`Processing: ${subject} from ${from} (body length: ${body.length})`);
 
         // Get all masters (forwarding rules)
         const masters = await Master.find({ isTelegramForwarding: { $ne: true } });
