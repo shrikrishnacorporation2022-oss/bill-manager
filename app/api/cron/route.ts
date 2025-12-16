@@ -5,8 +5,12 @@ import GmailAccount from '@/models/GmailAccount';
 import Master from '@/models/Master';
 import Bill from '@/models/Bill';
 import ForwardingActivity from '@/models/ForwardingActivity';
+import PendingTelegramMessage from '@/models/PendingTelegramMessage';
 import { sendTelegramMessage } from '@/lib/telegram';
 import { refreshGmailToken } from '@/lib/refreshGmailToken';
+import { checkOAuthHealth, sendOAuthAlert, attemptTokenRefresh } from '@/lib/oauthMonitor';
+import { calculateBackfillPeriod, fetchMissedEmails } from '@/lib/backfillEmails';
+import { processMessage } from '@/lib/processEmailMessage';
 
 export async function GET(request: Request) {
     // Verify Cron Secret to prevent unauthorized access
@@ -18,8 +22,89 @@ export async function GET(request: Request) {
     try {
         await dbConnect();
 
-        // 1. Get all active Gmail accounts
+        // 0. OAUTH HEALTH CHECK - Check all accounts for token issues
+        console.log('=== OAuth Health Check ===');
         const gmailAccounts = await GmailAccount.find({ isActive: true });
+
+        for (const account of gmailAccounts) {
+            const health = await checkOAuthHealth(account);
+
+            if (!health.isHealthy) {
+                console.log(`⚠️  ${account.email} - OAuth unhealthy (${health.daysUntilExpiry} days left)`);
+
+                // Try to refresh token
+                const refreshed = await attemptTokenRefresh(account, refreshGmailToken);
+
+                if (!refreshed) {
+                    // Send Telegram alert
+                    await sendOAuthAlert(account.email, health.error || 'Token expired');
+                }
+            }
+        }
+
+        // 1. BACKFILL MISSED EMAILS - Check for any accounts that were disconnected
+        console.log('=== Backfill Check ===');
+        let totalBackfilled = 0;
+
+        for (const account of gmailAccounts) {
+            try {
+                const backfillPeriod = await calculateBackfillPeriod(account.lastSuccessfulCheck, { maxDays: 30 });
+                const daysSinceCheck = Math.floor((backfillPeriod.toDate.getTime() - backfillPeriod.fromDate.getTime()) / (1000 * 60 * 60 * 24));
+
+                if (daysSinceCheck > 1) {
+                    console.log(`📥 Backfilling ${account.email} from ${backfillPeriod.fromDate.toISOString()}`);
+
+                    const credentials = await refreshGmailToken(account._id.toString());
+                    const oauth2Client = new google.auth.OAuth2(
+                        process.env.GOOGLE_CLIENT_ID,
+                        process.env.GOOGLE_CLIENT_SECRET
+                    );
+                    oauth2Client.setCredentials({
+                        access_token: credentials.accessToken,
+                        refresh_token: credentials.refreshToken,
+                    });
+                    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+                    const missedMessages = await fetchMissedEmails(gmail, backfillPeriod.fromDate, backfillPeriod.toDate);
+
+                    // Process missed emails
+                    for (const message of missedMessages) {
+                        await processMessage(gmail, message.id, account);
+                        totalBackfilled++;
+                    }
+
+                    console.log(`✅ Backfilled ${missedMessages.length} emails for ${account.email}`);
+                }
+
+                // Update last successful check
+                account.lastSuccessfulCheck = new Date();
+                await account.save();
+
+            } catch (error: any) {
+                console.error(`Failed to backfill ${account.email}:`, error.message);
+            }
+        }
+
+        // 2. PROCESS PENDING TELEGRAM MESSAGES
+        console.log('=== Processing Pending Telegram Messages ===');
+        const pendingMessages = await PendingTelegramMessage.find({ processed: false }).limit(100);
+        let telegramProcessed = 0;
+
+        for (const pending of pendingMessages) {
+            try {
+                // Process the Telegram message (will be implemented in Telegram webhook)
+                // For now, mark as processed
+                pending.processed = true;
+                pending.processedAt = new Date();
+                await pending.save();
+                telegramProcessed++;
+            } catch (error: any) {
+                pending.error = error.message;
+                await pending.save();
+            }
+        }
+
+        // 3. Get all active Gmail accounts
         let totalProcessed = 0;
         let totalForwarded = 0;
 
@@ -199,6 +284,8 @@ export async function GET(request: Request) {
             success: true,
             emailsChecked: totalProcessed,
             emailsForwarded: totalForwarded,
+            emailsBackfilled: totalBackfilled,
+            telegramMessagesProcessed: telegramProcessed,
             reminders: dueBills.length
         });
     } catch (error) {

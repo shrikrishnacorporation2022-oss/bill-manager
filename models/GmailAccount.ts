@@ -9,6 +9,7 @@ export interface IGmailAccount extends Document {
     isActive: boolean;
     historyId?: string;
     watchExpiration?: Date;
+    lastSuccessfulCheck?: Date;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -22,6 +23,7 @@ const GmailAccountSchema: Schema = new Schema({
     isActive: { type: Boolean, default: true },
     historyId: { type: String },
     watchExpiration: { type: Date },
+    lastSuccessfulCheck: { type: Date, default: () => new Date() },
 }, { timestamps: true });
 
 const GmailAccount: Model<IGmailAccount> =
