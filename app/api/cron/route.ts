@@ -90,17 +90,37 @@ export async function GET(request: Request) {
         const pendingMessages = await PendingTelegramMessage.find({ processed: false }).limit(100);
         let telegramProcessed = 0;
 
-        for (const pending of pendingMessages) {
-            try {
-                // Process the Telegram message (will be implemented in Telegram webhook)
-                // For now, mark as processed
-                pending.processed = true;
-                pending.processedAt = new Date();
-                await pending.save();
-                telegramProcessed++;
-            } catch (error: any) {
-                pending.error = error.message;
-                await pending.save();
+        if (pendingMessages.length > 0) {
+            // Get Telegram master config
+            const telegramMaster = await Master.findOne({ isTelegramForwarding: true });
+
+            if (telegramMaster && telegramMaster.autoForwardTo) {
+                // Get first active Gmail account
+                const gmailAccount = gmailAccounts[0];
+
+                if (gmailAccount) {
+                    try {
+                        const credentials = await refreshGmailToken(gmailAccount._id.toString());
+                        const oauth2Client = new google.auth.OAuth2(
+                            process.env.GOOGLE_CLIENT_ID,
+                            process.env.GOOGLE_CLIENT_SECRET
+                        );
+                        oauth2Client.setCredentials({
+                            access_token: credentials.accessToken,
+                            refresh_token: credentials.refreshToken,
+                        });
+                        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+                        const { processPendingTelegramMessage } = await import('@/lib/processPendingTelegram');
+
+                        for (const pending of pendingMessages) {
+                            const success = await processPendingTelegramMessage(gmail, pending, telegramMaster.autoForwardTo);
+                            if (success) telegramProcessed++;
+                        }
+                    } catch (error: any) {
+                        console.error('Failed to process Telegram messages:', error.message);
+                    }
+                }
             }
         }
 

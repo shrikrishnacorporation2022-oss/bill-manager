@@ -50,53 +50,75 @@ export async function POST(request: Request) {
             return NextResponse.json({ ok: true });
         }
 
-        const credentials = await refreshGmailToken(gmailAccount._id.toString());
-        const oauth2Client = new google.auth.OAuth2(
-            process.env.GOOGLE_CLIENT_ID,
-            process.env.GOOGLE_CLIENT_SECRET
-        );
-
-        oauth2Client.setCredentials({
-            access_token: credentials.accessToken,
-            refresh_token: credentials.refreshToken,
-        });
-
-        const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-
-        let emailBody = `From Telegram: ${from?.first_name || 'Unknown'}\n\n${text || ''}`;
-
-        let rawEmail;
-        if (photo || document) {
-            const fileId = photo ? photo[photo.length - 1].file_id : document.file_id;
-            const fileName = document ? document.file_name : `image_${Date.now()}.jpg`;
-
-            const fileUrl = await getTelegramFileUrl(fileId);
-            const fileData = await downloadFile(fileUrl);
-
-            rawEmail = createEmailWithAttachment(
-                telegramMaster.autoForwardTo,
-                'Telegram Message',
-                emailBody,
-                fileName,
-                fileData
+        // Try to send via Gmail, queue if OAuth fails
+        try {
+            const credentials = await refreshGmailToken(gmailAccount._id.toString());
+            const oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET
             );
-        } else {
-            rawEmail = createSimpleEmail(
-                telegramMaster.autoForwardTo,
-                'Telegram Message',
-                emailBody
-            );
+
+            oauth2Client.setCredentials({
+                access_token: credentials.accessToken,
+                refresh_token: credentials.refreshToken,
+            });
+
+            const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+            let emailBody = `From Telegram: ${from?.first_name || 'Unknown'}\n\n${text || ''}`;
+
+            let rawEmail;
+            if (photo || document) {
+                const fileId = photo ? photo[photo.length - 1].file_id : document.file_id;
+                const fileName = document ? document.file_name : `image_${Date.now()}.jpg`;
+
+                const fileUrl = await getTelegramFileUrl(fileId);
+                const fileData = await downloadFile(fileUrl);
+
+                rawEmail = createEmailWithAttachment(
+                    telegramMaster.autoForwardTo,
+                    'Telegram Message',
+                    emailBody,
+                    fileName,
+                    fileData
+                );
+            } else {
+                rawEmail = createSimpleEmail(
+                    telegramMaster.autoForwardTo,
+                    'Telegram Message',
+                    emailBody
+                );
+            }
+
+            await gmail.users.messages.send({
+                userId: 'me',
+                requestBody: { raw: rawEmail },
+            });
+
+            console.log('✅ Sent!');
+            return NextResponse.json({ ok: true });
+
+        } catch (oauthError: any) {
+            // OAuth failed - queue the message for later processing
+            console.error('❌ OAuth failed, queuing message:', oauthError.message);
+
+            const PendingTelegramMessage = (await import('@/models/PendingTelegramMessage')).default;
+
+            await PendingTelegramMessage.create({
+                chatId: message.chat.id.toString(),
+                messageId: message.message_id,
+                text: text,
+                photoFileId: photo ? photo[photo.length - 1].file_id : null,
+                documentFileId: document ? document.file_id : null,
+                receivedAt: new Date(),
+                processed: false,
+            });
+
+            console.log('📥 Message queued for later processing');
+            return NextResponse.json({ ok: true });
         }
-
-        await gmail.users.messages.send({
-            userId: 'me',
-            requestBody: { raw: rawEmail },
-        });
-
-        console.log('✅ Sent!');
-        return NextResponse.json({ ok: true });
     } catch (error: any) {
-        console.error('Error:', error);
+        console.error('Telegram webhook error:', error);
         return NextResponse.json({ ok: true });
     }
 }
