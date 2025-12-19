@@ -61,6 +61,12 @@ export async function processMessage(gmail: any, messageId: string, account: any
         const from = headers.find((h: any) => h.name === 'From')?.value || '';
         const subject = headers.find((h: any) => h.name === 'Subject')?.value || '';
 
+        // Skip emails sent from this account to prevent self-forwarding sent items
+        if (from.toLowerCase().includes(account.email.toLowerCase())) {
+            console.log(`Skipping email sent from same account: ${account.email}`);
+            return;
+        }
+
         // Skip forwarded emails to prevent loops
         if (subject.toLowerCase().startsWith('fwd:')) {
             console.log('Skipping already forwarded email');
