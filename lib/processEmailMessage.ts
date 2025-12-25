@@ -9,8 +9,8 @@ async function forwardEmailRaw(gmail: any, messageId: string, to: string, subjec
         format: 'raw',
     });
 
-    // Decode the raw message
-    const rawEmail = Buffer.from(msg.data.raw, 'base64url').toString('utf-8');
+    // Decode the raw message using latin1 (ISO-8859-1) to preserve binary bytes for attachments
+    const rawEmail = Buffer.from(msg.data.raw, 'base64url').toString('latin1');
 
     // To forward correctly while preserving attachments, we must keep the original MIME structure.
     // We strictly replace the To and Subject headers and remove headers that cause delivery loops.
@@ -50,7 +50,7 @@ async function forwardEmailRaw(gmail: any, messageId: string, to: string, subjec
     const forwardedEmail = newHeaders + body;
 
     // Encode and send
-    const encodedEmail = Buffer.from(forwardedEmail)
+    const encodedEmail = Buffer.from(forwardedEmail, 'latin1')
         .toString('base64')
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
