@@ -94,6 +94,25 @@ function EmailsContent() {
         }
     };
 
+    const [syncing, setSyncing] = useState(false);
+
+    const handleSyncMissed = async () => {
+        if (!selectedAccount) return;
+        setSyncing(true);
+        try {
+            const res = await axios.post('/api/gmail/sync-missed', {
+                accountId: selectedAccount.id
+            });
+            alert(res.data.message);
+            fetchEmails(selectedAccount.id);
+        } catch (error: any) {
+            console.error(error);
+            alert(error.response?.data?.error || 'Failed to sync missed emails');
+        } finally {
+            setSyncing(false);
+        }
+    };
+
     useEffect(() => {
         if (selectedAccount) {
             fetchEmails(selectedAccount.id);
@@ -200,7 +219,7 @@ function EmailsContent() {
                     {/* Account Selector */}
                     <div className="glass-card p-4">
                         <h3 className="text-sm text-gray-400 mb-3">Connected Accounts</h3>
-                        <div className="flex gap-3 flex-wrap">
+                        <div className="flex gap-3 flex-wrap items-center">
                             {accounts.map((account) => (
                                 <button
                                     key={account.id}
@@ -215,6 +234,21 @@ function EmailsContent() {
                                     {account.email}
                                 </button>
                             ))}
+
+                            {selectedAccount && (
+                                <button
+                                    onClick={handleSyncMissed}
+                                    disabled={syncing}
+                                    className="ml-auto px-4 py-2 rounded-lg bg-blue-600/20 text-blue-400 border border-blue-500/30 hover:bg-blue-600/30 transition-all flex items-center gap-2"
+                                >
+                                    {syncing ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : (
+                                        <Mail className="w-4 h-4" />
+                                    )}
+                                    {syncing ? 'Syncing...' : 'Sync Missed Emails'}
+                                </button>
+                            )}
                         </div>
                     </div>
 

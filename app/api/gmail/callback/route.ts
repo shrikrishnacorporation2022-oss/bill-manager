@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
         // Save to database
         await dbConnect();
-        await GmailAccount.findOneAndUpdate(
+        const account = await GmailAccount.findOneAndUpdate(
             { userId: state, email: gmailEmail },
             {
                 userId: state,
@@ -42,6 +42,28 @@ export async function GET(request: Request) {
             },
             { upsert: true, new: true }
         );
+
+        // Immediate Backfill Trigger: catch up on missed emails from the last disconnection
+        // We do this asynchronously to avoid timing out the redirect
+        (async () => {
+            try {
+                const { calculateBackfillPeriod, fetchMissedEmails } = await import('@/lib/backfillEmails');
+                const { processMessage } = await import('@/lib/processEmailMessage');
+
+                const backfillPeriod = await calculateBackfillPeriod(account.lastSuccessfulCheck, { maxDays: 7 });
+                const missedMessages = await fetchMissedEmails(gmail, backfillPeriod.fromDate, backfillPeriod.toDate);
+
+                for (const message of missedMessages) {
+                    await processMessage(gmail, message.id, account);
+                }
+
+                account.lastSuccessfulCheck = new Date();
+                await account.save();
+                console.log(`✅ Immediate backfill completed for ${gmailEmail}`);
+            } catch (err) {
+                console.error(`Immediate backfill failed for ${gmailEmail}:`, err);
+            }
+        })();
 
         return NextResponse.redirect(new URL('/emails?success=true', request.url));
     } catch (error) {
