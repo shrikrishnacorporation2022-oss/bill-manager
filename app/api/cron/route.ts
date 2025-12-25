@@ -49,10 +49,11 @@ export async function GET(request: Request) {
         for (const account of gmailAccounts) {
             try {
                 const backfillPeriod = await calculateBackfillPeriod(account.lastSuccessfulCheck, { maxDays: 30 });
-                const daysSinceCheck = Math.floor((backfillPeriod.toDate.getTime() - backfillPeriod.fromDate.getTime()) / (1000 * 60 * 60 * 24));
+                const timeSinceCheck = backfillPeriod.toDate.getTime() - backfillPeriod.fromDate.getTime();
+                const hoursSinceCheck = timeSinceCheck / (1000 * 60 * 60);
 
-                if (daysSinceCheck > 1) {
-                    console.log(`📥 Backfilling ${account.email} from ${backfillPeriod.fromDate.toISOString()}`);
+                if (hoursSinceCheck > 1) {
+                    console.log(`📥 Backfilling ${account.email} from ${backfillPeriod.fromDate.toISOString()} (${hoursSinceCheck.toFixed(1)} hours missed)`);
 
                     const credentials = await refreshGmailToken(account._id.toString());
                     const oauth2Client = new google.auth.OAuth2(

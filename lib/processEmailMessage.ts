@@ -12,25 +12,42 @@ async function forwardEmailRaw(gmail: any, messageId: string, to: string, subjec
     // Decode the raw message
     const rawEmail = Buffer.from(msg.data.raw, 'base64url').toString('utf-8');
 
-    // Parse headers and body
+    // To forward correctly while preserving attachments, we must keep the original MIME structure.
+    // We strictly replace the To and Subject headers and remove headers that cause delivery loops.
     const headerEndIndex = rawEmail.indexOf('\r\n\r\n');
-    const originalHeaders = rawEmail.substring(0, headerEndIndex);
-    const body = rawEmail.substring(headerEndIndex + 4);
+    let headers = rawEmail.substring(0, headerEndIndex);
+    const body = rawEmail.substring(headerEndIndex); // includes the \r\n\r\n
 
-    // Create new headers for forwarded email
-    const forwardedHeaders = [
+    // Remove old To and Subject and other routing headers
+    const restrictedHeaders = ['To:', 'Subject:', 'Cc:', 'Bcc:', 'Delivered-To:', 'Return-Path:'];
+    const lines = headers.split(/\r?\n/);
+    const filteredLines: string[] = [];
+    let skipping = false;
+
+    for (const line of lines) {
+        if (line.match(/^\s/)) {
+            // This is a folded line (starts with whitespace)
+            if (!skipping) filteredLines.push(line);
+        } else {
+            // This is a new header line
+            const isRestricted = restrictedHeaders.some(rh => line.toLowerCase().startsWith(rh.toLowerCase()));
+            if (isRestricted) {
+                skipping = true;
+            } else {
+                skipping = false;
+                filteredLines.push(line);
+            }
+        }
+    }
+
+    // Prepend our new To and Subject
+    const newHeaders = [
         `To: ${to}`,
         `Subject: Fwd: ${subject}`,
-        // Copy important MIME headers from original
-        ...originalHeaders.split('\r\n').filter((line: string) => {
-            return (line.startsWith('MIME-Version:') ||
-                line.startsWith('Content-Type:') ||
-                line.startsWith('Content-Transfer-Encoding:'));
-        }),
+        ...filteredLines
     ].join('\r\n');
 
-    // Reconstruct the email with new headers and original body
-    const forwardedEmail = `${forwardedHeaders}\r\n\r\n${body}`;
+    const forwardedEmail = newHeaders + body;
 
     // Encode and send
     const encodedEmail = Buffer.from(forwardedEmail)
@@ -46,7 +63,7 @@ async function forwardEmailRaw(gmail: any, messageId: string, to: string, subjec
         },
     });
 
-    console.log(`✅ Forwarded raw email to ${to}`);
+    console.log(`✅ Forwarded raw email (robust) to ${to}`);
 }
 
 export async function processMessage(gmail: any, messageId: string, account: any) {
