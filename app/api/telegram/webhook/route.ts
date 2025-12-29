@@ -40,13 +40,21 @@ export async function POST(request: Request) {
             isTelegramForwarding: true
         });
 
+        console.log('📋 Telegram Master found:', telegramMaster ? 'YES' : 'NO');
+        if (telegramMaster) {
+            console.log('📋 Forward to:', telegramMaster.autoForwardTo || 'NOT SET');
+        }
+
         if (!telegramMaster || !telegramMaster.autoForwardTo) {
-            console.log('❌ Not configured');
+            console.log('❌ Telegram forwarding not configured');
             return NextResponse.json({ ok: true });
         }
 
         const gmailAccount = await GmailAccount.findOne({ isActive: true });
+        console.log('📬 Gmail Account found:', gmailAccount ? gmailAccount.email : 'NO ACCOUNT');
+
         if (!gmailAccount) {
+            console.log('❌ No active Gmail account found');
             return NextResponse.json({ ok: true });
         }
 
@@ -90,12 +98,14 @@ export async function POST(request: Request) {
                 );
             }
 
+            console.log('📤 Attempting to send email to:', telegramMaster.autoForwardTo);
+
             await gmail.users.messages.send({
                 userId: 'me',
                 requestBody: { raw: rawEmail },
             });
 
-            console.log('✅ Sent!');
+            console.log('✅ Email sent successfully!');
             return NextResponse.json({ ok: true });
 
         } catch (oauthError: any) {
